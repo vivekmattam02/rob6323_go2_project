@@ -36,6 +36,9 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
     observation_space = 235
     state_space = 0
     debug_vis = True
+    
+    #base height 
+    base_height_min = 0.15  # the bot is about 0.30m tall. From tutorials, giving a min of 0.15m . 
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
@@ -80,7 +83,9 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
     robot_cfg: ArticulationCfg = UNITREE_GO2_CFG.replace(prim_path="/World/envs/env_.*/Robot")
 
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
+    #reducing num_envs to reduce processing time. 
+    
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1024, env_spacing=4.0, replicate_physics=True)
     contact_sensor: ContactSensorCfg = ContactSensorCfg(
         prim_path="/World/envs/env_.*/Robot/.*", history_length=3, update_period=0.005, track_air_time=True
     )
