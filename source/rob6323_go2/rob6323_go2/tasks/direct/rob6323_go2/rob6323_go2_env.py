@@ -22,6 +22,10 @@ import isaaclab.utils.math as math_utils
 
 from .rob6323_go2_env_cfg import Rob6323Go2EnvCfg
 
+# Terrain changes
+#from https://github.com/isaac-sim/IsaacLab/blob/2ed331acfcbb1b96c47b190564476511836c3754/source/isaaclab_tasks/isaaclab_tasks/direct/anymal_c/anymal_c_env.py
+from isaaclab.sensors import RayCaster
+
 
 class Rob6323Go2Env(DirectRLEnv):
     cfg: Rob6323Go2EnvCfg
@@ -56,7 +60,13 @@ class Rob6323Go2Env(DirectRLEnv):
 
     def _setup_scene(self):
         self.robot = Articulation(self.cfg.robot_cfg)
+        # add articulation to scene
+        self.scene.articulations["robot"] = self.robot
         self._contact_sensor = ContactSensor(self.cfg.contact_sensor)
+        self.scene.sensors["contact_sensor"] = self._contact_sensor
+        #height sensor for perceiving terrain height
+        self._height_scanner = RayCaster(self.cfg.height_scanner)
+        self.scene.sensors["height_scanner"] = self._height_scanner
         # add ground plane
         self.cfg.terrain.num_envs = self.scene.cfg.num_envs
         self.cfg.terrain.env_spacing = self.scene.cfg.env_spacing
@@ -66,8 +76,7 @@ class Rob6323Go2Env(DirectRLEnv):
         # we need to explicitly filter collisions for CPU simulation
         if self.device == "cpu":
             self.scene.filter_collisions(global_prim_paths=[])
-        # add articulation to scene
-        self.scene.articulations["robot"] = self.robot
+        
         # add lights
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
         light_cfg.func("/World/Light", light_cfg)
@@ -81,6 +90,9 @@ class Rob6323Go2Env(DirectRLEnv):
 
     def _get_observations(self) -> dict:
         self._previous_actions = self._actions.clone()
+        height_data = (
+                self._height_scanner.data.pos_w[:, 2].unsqueeze(1) - self._height_scanner.data.ray_hits_w[..., 2] - 0.5
+            ).clip(-1.0, 1.0)
         obs = torch.cat(
             [
                 tensor
@@ -91,7 +103,9 @@ class Rob6323Go2Env(DirectRLEnv):
                     self._commands,
                     self.robot.data.joint_pos - self.robot.data.default_joint_pos,
                     self.robot.data.joint_vel,
+                    height_data,
                     self._actions,
+                    
                 )
                 if tensor is not None
             ],
