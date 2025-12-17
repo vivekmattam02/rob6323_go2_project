@@ -73,6 +73,7 @@ class Rob6323Go2Env(DirectRLEnv):
         self._terrain = self.cfg.terrain.class_type(self.cfg.terrain)
         # clone and replicate
         self.scene.clone_environments(copy_from_source=False)
+        
         # we need to explicitly filter collisions for CPU simulation
         if self.device == "cpu":
             self.scene.filter_collisions(global_prim_paths=[])
@@ -141,7 +142,7 @@ class Rob6323Go2Env(DirectRLEnv):
         #adding base height ; source: tutorials.md
         base_height = self.robot.data.root_pos_w[:, 2]
         cstr_base_height_min = base_height < self.cfg.base_height_min
-        died = cstr_termination_contacts | cstr_upsidedown | cstr_base_height_min
+        died = cstr_termination_contacts | cstr_upsidedown 
         return died, time_out
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
@@ -159,11 +160,30 @@ class Rob6323Go2Env(DirectRLEnv):
         # Reset robot state
         joint_pos = self.robot.data.default_joint_pos[env_ids]
         joint_vel = self.robot.data.default_joint_vel[env_ids]
-        default_root_state = self.robot.data.default_root_state[env_ids]
+        
+        default_root_state = self.robot.data.default_root_state[env_ids].clone()
+        print(f"len(env_ids): {len(env_ids)}")
+        # DEBUG: Print the ACTUAL env_ids and their corresponding origins
+        if len(env_ids) >= 5 and len(env_ids) < self.num_envs:
+            actual_env_ids = env_ids[:5] if isinstance(env_ids, torch.Tensor) else env_ids[:5]
+            print(f"\n=== PARTIAL RESET DEBUG ===")
+            print(f"Resetting {len(env_ids)} envs, first 5 env_ids: {actual_env_ids}")
+            print(f"Origins for these env_ids:\n{self._terrain.env_origins[env_ids][:5]}")
+            print(f"Robot default pos (should be 0,0,0.4):\n{default_root_state[:5, :3]}")
+        
         default_root_state[:, :3] += self._terrain.env_origins[env_ids]
+        
+        if len(env_ids) >= 5 and len(env_ids) < self.num_envs:
+            print(f"Final spawn positions:\n{default_root_state[:5, :3]}")
+            print(f"=============================\n")
+        
         self.robot.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
         self.robot.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
         self.robot.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
+        
+
+        
+        
         # Logging
         extras = dict()
         for key in self._episode_sums.keys():

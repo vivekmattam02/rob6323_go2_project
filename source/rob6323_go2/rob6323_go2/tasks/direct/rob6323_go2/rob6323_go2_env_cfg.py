@@ -55,18 +55,31 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
         terrain_type="generator",
-        terrain_generator=ROUGH_TERRAINS_CFG,
-        max_init_terrain_level=9,
+        terrain_generator=TerrainGeneratorCfg(
+            size=(8.0, 8.0),
+            border_width=5.0,  # Flat spawn area
+            num_rows=10,
+            num_cols=10,
+            horizontal_scale=0.1,
+            vertical_scale=0.005,
+            slope_threshold=0.75,
+            use_cache=False,
+            curriculum=False,  # ← IMPORTANT: Disable curriculum to avoid duplicate spawns
+            sub_terrains={
+                "random_rough": terrain_gen.HfRandomUniformTerrainCfg(
+                    proportion=1.0,
+                    amplitude_range=(0.05, 0.15),  # 5-15cm bumps
+                    num_waves=3,
+                    border_width=0.25,
+                ),
+            },
+        ),
         collision_group=-1,
         physics_material=sim_utils.RigidBodyMaterialCfg(
             friction_combine_mode="multiply",
             restitution_combine_mode="multiply",
             static_friction=1.0,
             dynamic_friction=1.0,
-        ),
-        visual_material=sim_utils.MdlFileCfg(
-            mdl_path="{NVIDIA_NUCLEUS_DIR}/Materials/Base/Architecture/Shingles_01.mdl",
-            project_uvw=True,
         ),
         debug_vis=False,
     )
@@ -85,7 +98,7 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
     # scene
     #reducing num_envs to reduce processing time. 
     
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1024, env_spacing=4.0, replicate_physics=True)
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=256, env_spacing=4.0, replicate_physics=True)
     contact_sensor: ContactSensorCfg = ContactSensorCfg(
         prim_path="/World/envs/env_.*/Robot/.*", history_length=3, update_period=0.005, track_air_time=True
     )
