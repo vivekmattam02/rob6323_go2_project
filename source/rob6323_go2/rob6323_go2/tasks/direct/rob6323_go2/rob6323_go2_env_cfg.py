@@ -65,7 +65,7 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
             vertical_scale=0.005,
             slope_threshold=0.75,
             use_cache=False,
-            curriculum=False,  # ← IMPORTANT: Disable curriculum to avoid duplicate spawns
+            curriculum=False,  
             sub_terrains={
                 "random_rough": terrain_gen.HfRandomUniformTerrainCfg(
             proportion=0.2, noise_range=(0.02, 0.10), noise_step=0.02, border_width=0.25
