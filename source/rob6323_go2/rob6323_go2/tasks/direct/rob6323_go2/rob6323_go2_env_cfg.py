@@ -38,7 +38,7 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
     # - spaces definition
     action_scale = 0.5
     action_space = 12
-    observation_space = 235
+    observation_space = 235 + 4
     state_space = 0
     debug_vis = True
     
@@ -52,13 +52,13 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
     
     #tunable reward scale
     #part1
-    lin_vel_reward_scale = 1.0
-    yaw_rate_reward_scale = 0.5
-    action_rate_reward_scale = -0.1
+    lin_vel_reward_scale = 3.0
+    yaw_rate_reward_scale = 1.5
+    action_rate_reward_scale = -0.01
     
     #part 4
-    raibert_heuristic_reward_scale = -10.0
-    feet_clearance_reward_scale = -30.0
+    raibert_heuristic_reward_scale = -1.0
+    feet_clearance_reward_scale = -10.0
     tracking_contacts_shaped_force_reward_scale = 4.0
 
     # simulation
@@ -79,8 +79,8 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
         terrain_generator=TerrainGeneratorCfg(
             size=(8.0, 8.0),
             border_width=5.0,  # Flat spawn area
-            num_rows=64,
-            num_cols=64,
+            num_rows=16,
+            num_cols=16,
             horizontal_scale=0.1,
             vertical_scale=0.002,
             slope_threshold=0.75,

@@ -179,7 +179,7 @@ class Rob6323Go2Env(DirectRLEnv):
         terrain_height = self._terrain.env_origins[:, 2]
         height_above_terrain = base_height_world - terrain_height
         cstr_base_height_min = height_above_terrain < self.cfg.base_height_min
-        died = cstr_termination_contacts | cstr_upsidedown | cstr_base_height_min
+        died = cstr_termination_contacts | cstr_upsidedown 
         return died, time_out
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
@@ -213,8 +213,8 @@ class Rob6323Go2Env(DirectRLEnv):
         #    print(f"Origins for these env_ids:\n{self._terrain.env_origins[env_ids][:5]}")
         #    print(f"Robot default pos (should be 0,0,0.4):\n{default_root_state[:5, :3]}")
         
-        default_root_state[:, :3] += self._terrain.env_origins[env_ids]
-        
+        default_root_state[:, :2] += self._terrain.env_origins[env_ids, :2]
+        default_root_state[:, 2] = self._terrain.env_origins[env_ids, 2] + 0.4
         #if len(env_ids) >= 5 and len(env_ids) < self.num_envs:
         #    print(f"Final spawn positions:\n{default_root_state[:5, :3]}")
         #    print(f"=============================\n")
