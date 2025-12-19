@@ -53,7 +53,7 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
     #tunable reward scale
     #part1
     lin_vel_reward_scale = 5.0
-    yaw_rate_reward_scale = 2.5
+    yaw_rate_reward_scale = 5.5
     action_rate_reward_scale = -0.1
     raibert_heuristic_reward_scale = -5.0
     orient_reward_scale = -0.0
