@@ -63,9 +63,10 @@ class Rob6323Go2Env(DirectRLEnv):
         self.Kd = torch.tensor([cfg.Kd] * 12, device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
         self.motor_offsets = torch.zeros(self.num_envs, 12, device=self.device)
         self.torque_limits = cfg.torque_limits
+        self.stiction_coeff = torch.zeros(self.num_envs, 12, device=self.device) #static friction
+        self.viscous_coeff = torch.zeros(self.num_envs, 12, device=self.device) #velocity dependent friction
 
-
-                # Get specific body indices for feet
+        # Get specific body indices for feet
         self._feet_ids = []
         foot_names = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
         for name in foot_names:
@@ -129,18 +130,23 @@ class Rob6323Go2Env(DirectRLEnv):
 
     def _apply_action(self) -> None:
         # Compute PD torques
-        torques = torch.clip(
-            (
-                self.Kp * (
-                    self.desired_joint_pos 
-                    - self.robot.data.joint_pos 
-                )
-                - self.Kd * self.robot.data.joint_vel
-            ),
-            -self.torque_limits,
-            self.torque_limits,
+        torques = (
+            self.Kp * (self.desired_joint_pos - self.robot.data.joint_pos)
+            - self.Kd * self.robot.data.joint_vel
         )
-
+        
+        # Compute friction torques (Bonus: Actuator friction model)
+        joint_vel = self.robot.data.joint_vel
+        tau_stiction = self.stiction_coeff * torch.tanh(joint_vel / 0.1)
+        tau_viscous = self.viscous_coeff * joint_vel
+        tau_friction = tau_stiction + tau_viscous
+        
+        # Subtract friction from PD torques
+        torques = torques - tau_friction
+        
+        # Clip to torque limits
+        torques = torch.clip(torques, -self.torque_limits, self.torque_limits)
+        
         # Apply torques to the robot
         self.robot.set_joint_effort_target(torques)
 
@@ -248,6 +254,9 @@ class Rob6323Go2Env(DirectRLEnv):
         self.last_actions[env_ids] = 0.
         #reset raibert quantity
         self.gait_indices[env_ids] = 0.
+        # Randomize friction parameters per episode (Bonus: Actuator friction model)
+        self.stiction_coeff[env_ids] = torch.zeros_like(self.stiction_coeff[env_ids]).uniform_(0.0, 2.5)
+        self.viscous_coeff[env_ids] = torch.zeros_like(self.viscous_coeff[env_ids]).uniform_(0.0, 0.3)
         # Sample new commands
         self._commands[env_ids] = torch.zeros_like(self._commands[env_ids]).uniform_(-1.0, 1.0)
         # Reset robot state
@@ -366,39 +375,39 @@ class Rob6323Go2Env(DirectRLEnv):
         return reward
     
     def _reward_feet_clearance(self):
-            """Penalize feet that are too low during swing phase."""
-            # From reference: phases determines how high feet should be lifted
-            phases = 1 - torch.abs(1.0 - torch.clip((self.foot_indices * 2.0) - 1.0, 0.0, 1.0) * 2.0)
-            
-            # Get feet heights (z-coordinate in world frame)
-            foot_height = self.foot_positions_w[:, :, 2]
-            
-            # Target height: 8cm * phase + 2cm offset for foot radius
-            target_height = 0.08 * phases + 0.02
-            
-            # Penalize error only during swing phase (1 - desired_contact_states)
-            rew_foot_clearance = torch.square(target_height - foot_height) * (1 - self.desired_contact_states)
-            
-            reward = torch.sum(rew_foot_clearance, dim=1)
-            return reward
-    
+        """Penalize feet that are too low during swing phase."""
+        # From reference: phases determines how high feet should be lifted
+        phases = 1 - torch.abs(1.0 - torch.clip((self.foot_indices * 2.0) - 1.0, 0.0, 1.0) * 2.0)
+        
+        # Get feet heights (z-coordinate in world frame)
+        foot_height = self.foot_positions_w[:, :, 2]
+        
+        # Target height: 8cm * phase + 2cm offset for foot radius
+        target_height = 0.08 * phases + 0.02
+        
+        # Penalize error only during swing phase (1 - desired_contact_states)
+        rew_foot_clearance = torch.square(target_height - foot_height) * (1 - self.desired_contact_states)
+        
+        reward = torch.sum(rew_foot_clearance, dim=1)
+        return reward
+
     def _reward_tracking_contacts_shaped_force(self):
-            """Reward proper foot contact forces during stance phase."""
-            # Get contact forces for feet from sensor (z-component = vertical)
-            foot_forces = self._contact_sensor.data.net_forces_w[:, self._feet_ids_sensor, 2]
-            
-            # From reference implementation
-            desired_contact = self.desired_contact_states
-            rew_tracking_contacts_shaped_force = torch.zeros(self.num_envs, device=self.device)
-            
-            for i in range(4):
-                # Penalize force when foot should be in swing (1 - desired_contact)
-                # Use exponential to smooth the penalty
-                rew_tracking_contacts_shaped_force += - (1 - desired_contact[:, i]) * (
-                    1 - torch.exp(-1 * foot_forces[:, i] ** 2 / 100.))
-            
-            reward = rew_tracking_contacts_shaped_force / 4  # Normalize by number of feet
-            return reward
+        """Reward proper foot contact forces during stance phase."""
+        # Get contact forces for feet from sensor (z-component = vertical)
+        foot_forces = self._contact_sensor.data.net_forces_w[:, self._feet_ids_sensor, 2]
+        
+        # From reference implementation
+        desired_contact = self.desired_contact_states
+        rew_tracking_contacts_shaped_force = torch.zeros(self.num_envs, device=self.device)
+        
+        for i in range(4):
+            # Penalize force when foot should be in swing (1 - desired_contact)
+            # Use exponential to smooth the penalty
+            rew_tracking_contacts_shaped_force += - (1 - desired_contact[:, i]) * (
+                1 - torch.exp(-1 * foot_forces[:, i] ** 2 / 100.))
+        
+        reward = rew_tracking_contacts_shaped_force / 4  # Normalize by number of feet
+        return reward
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
