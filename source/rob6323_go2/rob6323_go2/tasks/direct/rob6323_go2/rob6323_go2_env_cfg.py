@@ -44,7 +44,7 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
     
     # PD control gains
     Kp = 20.0  # Proportional gain
-    Kd = 1.0   # Derivative gain
+    Kd = 0.5   # Derivative gain
     torque_limits = 100.0  # Max torque
     
     #base height 
@@ -122,7 +122,7 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
     # scene
     #reducing num_envs to reduce processing time. 
     
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=256, env_spacing=4.0, replicate_physics=True)
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
     contact_sensor: ContactSensorCfg = ContactSensorCfg(
         prim_path="/World/envs/env_.*/Robot/.*", history_length=3, update_period=0.005, track_air_time=True
     )
