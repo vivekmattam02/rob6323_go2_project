@@ -47,7 +47,7 @@ class Rob6323Go2Env(DirectRLEnv):
                 "track_lin_vel_xy_exp",
                 "track_ang_vel_z_exp",
                 "rew_action_rate",
-                "raibert_heuristic"
+                "raibert_heuristic",
                 "orient",
                 "lin_vel_z",
                 "dof_vel",
@@ -200,6 +200,8 @@ class Rob6323Go2Env(DirectRLEnv):
         
         self._step_contact_targets()  # Update gait state
         rew_raibert_heuristic = self._reward_raibert_heuristic()
+        rew_feet_clearance = self._reward_feet_clearance()
+        rew_tracking_contacts = self._reward_tracking_contacts_shaped_force()
         
         rewards = {
             "track_lin_vel_xy_exp": lin_vel_error_mapped * self.cfg.lin_vel_reward_scale,
@@ -210,6 +212,8 @@ class Rob6323Go2Env(DirectRLEnv):
             "lin_vel_z": rew_lin_vel_z * self.cfg.lin_vel_z_reward_scale,
             "dof_vel": rew_dof_vel * self.cfg.dof_vel_reward_scale,
             "ang_vel_xy": rew_ang_vel_xy * self.cfg.ang_vel_xy_reward_scale,
+            "feet_clearance": rew_feet_clearance * self.cfg.feet_clearance_reward_scale,
+            "tracking_contacts_shaped_force": rew_tracking_contacts * self.cfg.tracking_contacts_shaped_force_reward_scale,
         }
         reward = torch.sum(torch.stack(list(rewards.values())), dim=0)
         # Logging
@@ -360,6 +364,41 @@ class Rob6323Go2Env(DirectRLEnv):
         reward = torch.sum(torch.square(err_raibert_heuristic), dim=(1, 2))
 
         return reward
+    
+    def _reward_feet_clearance(self):
+            """Penalize feet that are too low during swing phase."""
+            # From reference: phases determines how high feet should be lifted
+            phases = 1 - torch.abs(1.0 - torch.clip((self.foot_indices * 2.0) - 1.0, 0.0, 1.0) * 2.0)
+            
+            # Get feet heights (z-coordinate in world frame)
+            foot_height = self.foot_positions_w[:, :, 2]
+            
+            # Target height: 8cm * phase + 2cm offset for foot radius
+            target_height = 0.08 * phases + 0.02
+            
+            # Penalize error only during swing phase (1 - desired_contact_states)
+            rew_foot_clearance = torch.square(target_height - foot_height) * (1 - self.desired_contact_states)
+            
+            reward = torch.sum(rew_foot_clearance, dim=1)
+            return reward
+    
+    def _reward_tracking_contacts_shaped_force(self):
+            """Reward proper foot contact forces during stance phase."""
+            # Get contact forces for feet from sensor (z-component = vertical)
+            foot_forces = self._contact_sensor.data.net_forces_w[:, self._feet_ids_sensor, 2]
+            
+            # From reference implementation
+            desired_contact = self.desired_contact_states
+            rew_tracking_contacts_shaped_force = torch.zeros(self.num_envs, device=self.device)
+            
+            for i in range(4):
+                # Penalize force when foot should be in swing (1 - desired_contact)
+                # Use exponential to smooth the penalty
+                rew_tracking_contacts_shaped_force += - (1 - desired_contact[:, i]) * (
+                    1 - torch.exp(-1 * foot_forces[:, i] ** 2 / 100.))
+            
+            reward = rew_tracking_contacts_shaped_force / 4  # Normalize by number of feet
+            return reward
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
