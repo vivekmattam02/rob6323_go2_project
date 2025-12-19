@@ -52,15 +52,15 @@ class Rob6323Go2EnvCfg(DirectRLEnvCfg):
     
     #tunable reward scale
     #part1
-    lin_vel_reward_scale = 5.0
-    yaw_rate_reward_scale = 2.5
-    action_rate_reward_scale = -0.015
-    raibert_heuristic_reward_scale = -1.0
+    lin_vel_reward_scale = 2.0
+    yaw_rate_reward_scale = 1.0
+    action_rate_reward_scale = -0.01
+    raibert_heuristic_reward_scale = -2.0
     orient_reward_scale = -0.0
-    lin_vel_z_reward_scale = -0.025
-    dof_vel_reward_scale = -0.00011
-    ang_vel_xy_reward_scale = -0.005
-    feet_clearance_reward_scale = -2.0
+    lin_vel_z_reward_scale = -0.05
+    dof_vel_reward_scale = -0.0001
+    ang_vel_xy_reward_scale = -0.002
+    feet_clearance_reward_scale = -10.0
     tracking_contacts_shaped_force_reward_scale = 4.0
     
 
